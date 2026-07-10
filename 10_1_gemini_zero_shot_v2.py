@@ -1,0 +1,162 @@
+# -*- coding: utf-8 -*-
+import os
+import json
+import time
+import pandas as pd
+from tqdm import tqdm
+from dotenv import load_dotenv
+import concurrent.futures
+
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
+from google.api_core import exceptions as google_exceptions
+
+class Triple(BaseModel):
+    subject: str
+    subject_type: str
+    predicate: str
+    object: str
+    object_type: str
+
+class ExtractionResult(BaseModel):
+    triples: list[Triple]
+
+CONFIG = {
+    "INPUT_FILE": "./eval/pipeline_eval.json",
+    "OUTPUT_FILE": "./eval/gemini_v2_zero_shot.json",
+    "ONTOLOGY_FILE": "../resources/relationships.json", # Added Ontology Path
+    "MODEL_NAME": "gemini-2.5-flash",
+    "MAX_WORKERS": 10
+}
+
+def load_ontology_prompt():
+    """Loads the JSON ontology and formats it into a strict instruction string."""
+    if not os.path.exists(CONFIG["ONTOLOGY_FILE"]):
+        raise FileNotFoundError(f"Ontology file not found at {CONFIG['ONTOLOGY_FILE']}")
+        
+    with open(CONFIG["ONTOLOGY_FILE"], 'r', encoding='utf-8') as f:
+        ontology_data = json.load(f)
+        
+    relationships = ontology_data.get("relationships", {})
+    
+    prompt_lines = ["\nALLOWED PREDICATES AND THEIR DEFINITIONS:"]
+    for predicate, details in relationships.items():
+        definition = details.get("definition", "")
+        prompt_lines.append(f"- {predicate}: {definition}")
+        
+    return "\n".join(prompt_lines)
+
+class GeminiZeroShotExtractor:
+    def __init__(self):
+        load_dotenv()
+        self.client = genai.Client(api_key=os.environ.get('GOOGLE_API_KEY'))
+
+    def process_abstract(self, paper_id: str, abstract: str, ontology_instructions: str, retries=3) -> list:
+        # Dynamic prompt using the loaded ontology
+        prompt = f"""You are an expert AI researcher performing Joint Entity and Relation Extraction.
+Extract valid knowledge triples from this abstract using standard scientific entities (Task, Model, Algorithm, Dataset, Metric, Hardware).
+
+CRITICAL INSTRUCTION: You must strictly use ONLY the predicates listed below. Do not invent, hallucinate, or modify these predicates in any way.
+{ontology_instructions}
+
+Abstract:
+{abstract}"""
+        
+        attempt = 0
+        while attempt < retries:
+            try:
+                response = self.client.models.generate_content(
+                    model=CONFIG['MODEL_NAME'],
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ExtractionResult,
+                        temperature=0.0 
+                    )
+                )
+                result_data = json.loads(response.text)
+                return [{
+                    "paper_id": paper_id, "abstract_text": abstract,
+                    "subject": t.get("subject", ""), "subject_type": t.get("subject_type", ""),
+                    "predicate": t.get("predicate", ""), "object": t.get("object", ""),
+                    "object_type": t.get("object_type", ""), "source": "gemini-zero-shot"
+                } for t in result_data.get('triples', [])]
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                
+                if "prepayment credits are depleted" in error_msg:
+                    print(f"\n❌ FATAL BILLING ERROR on paper {paper_id}. Halting thread.")
+                    raise Exception("Billing Depleted. Please check Google AI Studio.")
+                elif "429" in error_msg or "quota" in error_msg or "exhausted" in error_msg:
+                    attempt += 1
+                    wait_time = 2 ** attempt
+                    print(f"\n⏳ Rate limited on paper {paper_id}. Retrying in {wait_time}s... (Attempt {attempt}/{retries})")
+                    time.sleep(wait_time)
+                else:
+                    print(f"\n⚠️ Skipped paper {paper_id} due to API Error: {e}")
+                    return []
+                    
+        print(f"\n⚠️ Skipped paper {paper_id} after {retries} failed retries.")
+        return []
+
+def main():
+    print("\n--- Starting Zero-Shot Gemini Extraction ---")
+    
+    # 1. Load the Ontology constraints
+    try:
+        ontology_instructions = load_ontology_prompt()
+        print("--> Successfully loaded ontology constraints.")
+    except Exception as e:
+        print(f"❌ Error loading ontology: {e}")
+        return
+
+    df_pipeline = pd.read_json(CONFIG['INPUT_FILE'])
+    unique_papers = df_pipeline[['paper_id', 'abstract_text']].drop_duplicates().to_dict('records')
+    
+    all_triples = []
+    processed_paper_ids = set()
+
+    if os.path.exists(CONFIG['OUTPUT_FILE']):
+        print("Found existing checkpoint. Loading previous progress...")
+        try:
+            with open(CONFIG['OUTPUT_FILE'], 'r', encoding='utf-8') as f:
+                all_triples = json.load(f)
+                processed_paper_ids = {t['paper_id'] for t in all_triples}
+        except json.JSONDecodeError:
+            print("Checkpoint file was empty or corrupted. Starting fresh.")
+            
+    papers_to_process = [p for p in unique_papers if p['paper_id'] not in processed_paper_ids]
+    
+    print(f"Total unique papers: {len(unique_papers)}")
+    print(f"Already processed: {len(processed_paper_ids)}")
+    print(f"Remaining to process: {len(papers_to_process)}")
+
+    if not papers_to_process:
+        print("✅ All papers have already been processed!")
+        return
+
+    extractor = GeminiZeroShotExtractor()
+    completed_count = 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=CONFIG['MAX_WORKERS']) as executor:
+        # Pass the ontology_instructions into the submitted function
+        future_to_paper = {executor.submit(extractor.process_abstract, p['paper_id'], p['abstract_text'], ontology_instructions): p['paper_id'] for p in papers_to_process}
+        
+        for future in tqdm(concurrent.futures.as_completed(future_to_paper), total=len(papers_to_process)):
+            all_triples.extend(future.result())
+            completed_count += 1
+            
+            if completed_count % 10 == 0:
+                with open(CONFIG['OUTPUT_FILE'], 'w', encoding='utf-8') as f:
+                    json.dump(all_triples, f, indent=4)
+                    
+            time.sleep(0.1)
+
+    with open(CONFIG['OUTPUT_FILE'], 'w', encoding='utf-8') as f:
+        json.dump(all_triples, f, indent=4)
+    print(f"✅ Saved {len(all_triples)} total triples to {CONFIG['OUTPUT_FILE']}")
+
+if __name__ == "__main__":
+    main()
