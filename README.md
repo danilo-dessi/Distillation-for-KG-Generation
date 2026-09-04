@@ -68,6 +68,6 @@ If you use this code, data, or the associated models in your research, please ci
 
 ---
 
-### 📊 `eval/`
+### 📊 `eval/ (zipped)` 
 
 The `eval/` directory contains the complete evaluation ecosystem for the knowledge extraction pipeline. It hosts the foundational baseline datasets, the raw zero-shot triples extracted by frontier LLMs (DeepSeek, Gemini, and GPT-4o), and the comprehensive automated judge results. The directory also includes the `human_annotation_sample.xlsx` workbook containing the triples manually reviewed by domain experts to establish the human-consensus ground truth used for validating the automated judges and calculating final extraction precision.
