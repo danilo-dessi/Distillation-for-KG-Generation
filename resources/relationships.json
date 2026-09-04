@@ -1,0 +1,54 @@
+{
+  "verb_list": "Scientific Text Relationship for Ontology",
+  "version": "1.1",
+  "relationships": {
+    "USES": {
+      "definition": "Answers: Does Entity A utilize Entity B as a tool, method, or resource to achieve a goal?",
+      "examples": ["use", "apply", "employ", "leverage", "utilize", "rely on", "exploit", "adopt", "process", "manage"]
+    },
+    "PRODUCES": {
+      "definition": "Answers: Is Entity B the result or output of Entity A?",
+      "examples": ["produce", "create", "generate", "derive", "develop", "design", "build", "model", "compute", "make"]
+    },
+    "ANALYZES": {
+      "definition": "Answers: Does Entity A study, examine, or measure Entity B?",
+      "examples": ["analyze", "assess", "study", "examine", "investigate"]
+    },
+    "INCLUDES": {
+      "definition": "Answers: Is Entity B a component, part, or member of Entity A?",
+      "examples": ["include", "contain", "comprise", "consist of", "embed", "has a", "have"]
+    },
+    "IS_A": {
+      "definition": "Answers: Is Entity A an instance of, or a type of, Entity B?",
+      "examples": ["is", "are", "represents", "constitutes"]
+    },
+    "COMPARES_TO": {
+      "definition": "Answers: Is a comparison being made between Entity A and Entity B?",
+      "examples": ["compare", "outperform", "is better than", "differs from"]
+    },
+    "INFLUENCES": {
+      "definition": "Answers: Does Entity A have a causal effect on Entity B?",
+      "examples": ["support", "improve", "enhance", "promote", "enable", "foster"]
+    },
+    "SHOWS": {
+      "definition": "Answers: Does an Entity A show a behavior of the entity B?",
+      "examples": ["show", "visualize", "imply"]
+    },
+    "IDENTIFIES": {
+      "definition": "Answers: Does an Entity A identify or discover B?",
+      "examples": ["identify", "detect", "filter", "recognize", "locate", "discover"]
+    },
+    "ADDRESSES": {
+      "definition": "Answers: Does Entity A (Model/Algorithm) aim to solve, tackle, or perform Entity B (Task)?",
+      "examples": ["addresses", "solves", "tackles", "performs", "executes"]
+    },
+    "EVALUATED_ON": {
+      "definition": "Answers: Was Entity A (Model/Algorithm) benchmarked or tested using Entity B (Dataset)?",
+      "examples": ["evaluated on", "tested on", "benchmarked against", "validated using"]
+    },
+    "ACHIEVES": {
+      "definition": "Answers: Did Entity A (Model/Algorithm) reach a specific performance result on Entity B (Metric)?",
+      "examples": ["achieves", "reaches", "obtains", "scores", "yields"]
+    }
+  }
+}

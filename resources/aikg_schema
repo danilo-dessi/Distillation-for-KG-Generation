@@ -1,0 +1,170 @@
+@prefix : <http://www.semanticweb.org/danilo/ontologies/2026/scikg#> .
+@prefix scikg: <http://www.semanticweb.org/danilo/ontologies/2026/scikg#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix mex: <http://mex.aksw.org/mex-algo#> .
+
+<http://www.semanticweb.org/danilo/ontologies/2026/scikg> rdf:type owl:Ontology ;
+    rdfs:label "Scientific AI Knowledge Graph Ontology" ;
+    rdfs:comment "Ontology for representing AI scientific literature, reified statements, and temporal observations." .
+
+# ==============================================================================
+# CORE CLASSES & EQUIVALENCIES
+# ==============================================================================
+
+scikg:Paper rdf:type owl:Class ;
+    owl:equivalentClass schema:ScholarlyArticle ;
+    rdfs:comment "A scientific publication." .
+
+scikg:ResearchEntity rdf:type owl:Class ;
+    rdfs:comment "Superclass for all extracted scientific entities." .
+
+scikg:Algorithm rdf:type owl:Class ;
+    rdfs:subClassOf scikg:ResearchEntity ;
+    owl:equivalentClass mex:Algorithm .
+
+scikg:Dataset rdf:type owl:Class ;
+    rdfs:subClassOf scikg:ResearchEntity ;
+    owl:equivalentClass schema:Dataset .
+
+scikg:Model rdf:type owl:Class ;
+    rdfs:subClassOf scikg:ResearchEntity .
+
+scikg:Metric rdf:type owl:Class ;
+    rdfs:subClassOf scikg:ResearchEntity .
+
+scikg:Task rdf:type owl:Class ;
+    rdfs:subClassOf scikg:ResearchEntity .
+
+scikg:Hardware rdf:type owl:Class ;
+    rdfs:subClassOf scikg:ResearchEntity ;
+    rdfs:comment "Standalone class for computing resources. No external equivalency." .
+
+rdf:Statement rdf:type owl:Class ;
+    rdfs:comment "Standard RDF class for reified statements (triples)." .
+
+scikg:TimeObservation rdf:type owl:Class ;
+    rdfs:comment "An observation of an entity or statement's frequency within a specific year." .
+
+# ==============================================================================
+# DATATYPE PROPERTIES (Attributes)
+# ==============================================================================
+
+scikg:title rdf:type owl:DatatypeProperty ;
+    rdfs:domain scikg:Paper ;
+    rdfs:range xsd:string .
+
+scikg:doi rdf:type owl:DatatypeProperty ;
+    rdfs:domain scikg:Paper ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The Document Object Identifier of the paper." .
+
+scikg:year rdf:type owl:DatatypeProperty ;
+    rdfs:domain [ rdf:type owl:Class ; owl:unionOf (scikg:Paper scikg:TimeObservation) ] ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "The publication year or the observation year." .
+
+scikg:hasSupport rdf:type owl:DatatypeProperty ;
+    rdfs:domain rdf:Statement ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "The total number of unique papers that support this specific reified statement." .
+
+scikg:averageConfidence rdf:type owl:DatatypeProperty ;
+    rdfs:domain rdf:Statement ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "The average confidence score assigned by the AI model across all extractions of this statement." .
+
+scikg:frequency rdf:type owl:DatatypeProperty ;
+    rdfs:domain scikg:TimeObservation ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "The occurrence count for a specific year." .
+
+scikg:publicationType rdf:type owl:DatatypeProperty ;
+    rdfs:domain scikg:Paper ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The publication status of the paper, such as 'article' or 'preprint'." .
+
+scikg:acronym rdf:type owl:DatatypeProperty ;
+    rdfs:domain scikg:ResearchEntity ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The abbreviated acronym of the research entity." .
+
+# ==============================================================================
+# OBJECT PROPERTIES (Structural Links)
+# ==============================================================================
+
+scikg:hasTimeObservation rdf:type owl:ObjectProperty ;
+    rdfs:domain [ rdf:type owl:Class ; owl:unionOf (scikg:ResearchEntity rdf:Statement) ] ;
+    rdfs:range scikg:TimeObservation ;
+    rdfs:comment "Links an entity or a reified statement to a temporal observation node that records its frequency in a specific year." .
+
+scikg:mentions rdf:type owl:ObjectProperty ;
+    rdfs:domain scikg:Paper ;
+    rdfs:range [ rdf:type owl:Class ; owl:unionOf (scikg:ResearchEntity rdf:Statement) ] ;
+    rdfs:comment "Links a scientific paper to the research entities or explicit relationships (reified statements) extracted from its text." .
+
+scikg:hasSubject rdf:type owl:ObjectProperty ;
+    rdfs:domain rdf:Statement ;
+    rdfs:range scikg:ResearchEntity ;
+    rdfs:comment "Indicates the source (head) entity of a reified scientific claim." .
+
+scikg:hasObject rdf:type owl:ObjectProperty ;
+    rdfs:domain rdf:Statement ;
+    rdfs:range scikg:ResearchEntity ;
+    rdfs:comment "Indicates the target (tail) entity of a reified scientific claim." .
+
+scikg:hasPredicate rdf:type owl:ObjectProperty ;
+    rdfs:domain rdf:Statement ;
+    rdfs:comment "Indicates the specific scientific verb (e.g., USES, EVALUATED_ON) that connects the subject and object in a reified claim." .
+
+# ==============================================================================
+# SCIENTIFIC RELATIONSHIPS (Used as predicates in Statements)
+# ==============================================================================
+
+scikg:INCLUDES rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:domain scikg:ResearchEntity ;
+    rdfs:range scikg:ResearchEntity ;
+    rdfs:comment "Indicates a compositional or part-whole relationship where one research entity inherently contains, embeds, or comprises another." .
+
+scikg:IS_A rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:domain scikg:ResearchEntity ;
+    rdfs:range scikg:ResearchEntity ;
+    rdfs:comment "Indicates a taxonomic or hierarchical relationship where one research entity is a specific instance or sub-type of another." .
+
+scikg:USES rdf:type owl:ObjectProperty ;
+    rdfs:comment "Indicates that a research entity applies, employs, or leverages another entity to perform its function or achieve its goal." .
+
+scikg:PRODUCES rdf:type owl:ObjectProperty ;
+    rdfs:comment "Indicates a generative relationship where one research entity creates, outputs, yields, or constructs another entity." .
+
+scikg:ANALYZES rdf:type owl:ObjectProperty ;
+    rdfs:comment "Indicates that a research entity examines, assesses, or evaluates another entity, typically to understand its properties or behaviors." .
+
+scikg:COMPARES_TO rdf:type owl:ObjectProperty ;
+    rdfs:comment "Indicates that a research entity is benchmarked, contrasted, or mapped against another entity to evaluate relative performance or characteristics." .
+
+scikg:INFLUENCES rdf:type owl:ObjectProperty ;
+    rdfs:comment "Indicates that one research entity affects, guides, or alters the behavior, development, or outcome of another entity." .
+
+scikg:SHOWS rdf:type owl:ObjectProperty ;
+    rdfs:comment "Indicates that a research entity reveals, demonstrates, or illustrates a particular finding, behavior, or other entity." .
+
+scikg:IDENTIFIES rdf:type owl:ObjectProperty ;
+    rdfs:comment "Indicates that a research entity detects, recognizes, discovers, or locates another entity." .
+
+scikg:ADDRESSES rdf:type owl:ObjectProperty ;
+    rdfs:range [ rdf:type owl:Class ; owl:unionOf (scikg:Task scikg:Algorithm) ] ;
+    rdfs:comment "Indicates the specific scientific problem, challenge, application (Task), or Algorithm that a research entity aims to solve or tackle." .
+
+scikg:EVALUATED_ON rdf:type owl:ObjectProperty ;
+    rdfs:domain [ rdf:type owl:Class ; owl:unionOf (scikg:Model scikg:Algorithm) ] ;
+    rdfs:range scikg:Dataset ;
+    rdfs:comment "Indicates the specific dataset, benchmark, or corpus that a model or algorithm is tested against to measure its performance." .
+    
+scikg:ACHIEVES rdf:type owl:ObjectProperty ;
+    rdfs:domain [ rdf:type owl:Class ; owl:unionOf (scikg:Model scikg:Algorithm) ] ;
+    rdfs:range scikg:Metric ;
+    rdfs:comment "Indicates the quantitative or qualitative performance metric score or state that a model or algorithm reaches during evaluation." .

@@ -6,6 +6,9 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from statsmodels.stats.inter_rater import fleiss_kappa, aggregate_raters
 from statsmodels.stats.contingency_tables import mcnemar
+from scipy.stats import fisher_exact, chi2_contingency
+from statsmodels.stats.proportion import proportion_confint
+from statsmodels.stats.multitest import multipletests
 
 # ==============================================================================
 # CONFIGURATION
@@ -150,7 +153,7 @@ def analyze_evaluations():
         print(f"F1-Score:  {f1:.4f}")
         
         sig_marker = "*" if p_value < 0.05 else ""
-        print(f"McNemar's p-value: {p_value:.4f} {sig_marker}")
+        print(f"McNemar's p-value: {p_value:.10f} {sig_marker}")
         if p_value < 0.05:
             print("  -> Significant difference from human consensus (p < 0.05).")
         else:
@@ -174,6 +177,51 @@ def analyze_evaluations():
             print(f"Sample Size:     {int(row['Total Sampled'])}")
             print(f"Correct Triples: {int(row['Correct Triples'])}")
             print(f"Precision:       {row['Precision']:.4f} ({row['Precision'] * 100:.1f}%)")
+
+        # 6. Statistical Significance of Precision Differences (Table 11)
+        print("\n[5] STATISTICAL SIGNIFICANCE OF PRECISION DIFFERENCES")
+
+        # Wilson 95% CIs for each source (better small-sample behaviour than a normal-approx CI)
+        print("\n--> 95% Wilson confidence intervals:")
+        ci_lookup = {}
+        for source, row in source_perf.iterrows():
+            n_correct = int(row['Correct Triples'])
+            n_total = int(row['Total Sampled'])
+            lo, hi = proportion_confint(n_correct, n_total, alpha=0.05, method='wilson')
+            ci_lookup[source] = (n_correct, n_total)
+            print(f"    {source}: {row['Precision']*100:.1f}%  [{lo*100:.1f}%, {hi*100:.1f}%]  (n={n_total})")
+
+        if len(ci_lookup) >= 2:
+            # Global test: are precision rates homogeneous across all sources?
+            contingency = np.array([[n, N - n] for n, N in ci_lookup.values()])
+            chi2, p_global, dof, _ = chi2_contingency(contingency)
+            print(f"\n--> Global chi-square test across all {len(ci_lookup)} sources: "
+                  f"chi2={chi2:.3f}, dof={dof}, p={p_global:.2e}")
+
+            # Pairwise Fisher's exact tests: top performer vs. every other source,
+            # Holm-Bonferroni corrected for multiple comparisons
+            best_source = source_perf['Precision'].idxmax()
+            best_n, best_N = ci_lookup[best_source]
+            print(f"\n--> Pairwise Fisher's exact tests vs. top performer "
+                  f"({best_source}, {best_n}/{best_N} = {best_n/best_N:.1%}):")
+
+            pvals, comparisons = [], []
+            for source, (n, N) in ci_lookup.items():
+                if source == best_source:
+                    continue
+                table = [[best_n, best_N - best_n], [n, N - n]]
+                _, p = fisher_exact(table)
+                pvals.append(p)
+                comparisons.append(source)
+
+            if pvals:
+                reject, p_adj, _, _ = multipletests(pvals, alpha=0.05, method='holm')
+                for source, p_raw, p_corr, sig in zip(comparisons, pvals, p_adj, reject):
+                    marker = "*" if sig else ""
+                    print(f"    {best_source} vs {source}: p={p_raw:.6f}, "
+                          f"Holm-corrected p={p_corr:.6f} {marker}")
+        else:
+            print("--> Need at least 2 sources to run comparative significance tests.")
     else:
         print("⚠️ 'source' column not found in the Excel file.")
 
